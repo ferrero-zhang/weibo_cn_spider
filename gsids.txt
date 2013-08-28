@@ -1,0 +1,4 @@
+﻿IP	gsid	email	block
+219.224.135.124	gsid_CTandWM=4uCBa7521QnK50LatVtiKcsTM3l	linbuaahao@163.com	blocked
+219.224.135.60	gsid_CTandWM=4uqga7521kT6e8UQhNsbje5ht8o	linhao.lh@qq.com
+	gsid_CTandWM=4uCBa7521QnK50LatVtiKcsTM3l	buaalinhao@163.com

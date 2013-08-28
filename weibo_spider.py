@@ -7,32 +7,58 @@ import urllib
 import urllib2
 import cookielib
 import threading
-
 import urllib3
 import pymongo
+import codecs
+import Queue
+import sys
 
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 
 WEIBO_USER = 'xxx'
 WEIBO_PWD = 'xxx'
 
-GSID = 'gsid_CTandWM=4uQm9cb91ekqDwsF6PPMH7EbNd5' #naive way
+GSID = 'gsid_CTandWM=4uCBa7521QnK50LatVtiKcsTM3l' #naive way
 COOKIES_FILE = 'cookies.txt'
 
-import Queue
+def con_database():##使用的时候导入，每个方法里有一个就行,注意不能更改
+    DB_HOST = '219.224.135.60'
+    DB_PORT = 27017
+    DB_USER = 'root'
+    DB_PWD = 'root'
+    connection = pymongo.Connection(DB_HOST, DB_PORT)
+    db = connection.admin
+    db.authenticate(DB_USER, DB_PWD)
+    return connection.test_crawler_liwenwen
 
-putWhatGet = open('get.txt', 'w')
+db = con_database()
+
+start_idx = 3#int(sys.argv[1])
+end_idx = 3#int(sys.argv[2])
+
+try:
+    start_page = int(sys.argv[3])
+except:
+    start_page = 1
+
+print 'spider range %s -- %s, start from page %s ' % (start_idx, end_idx, start_page)
 
 uid_queue = Queue.Queue()  ##用户队列,先进先出
 ##从文件中读入ID
 f = open(r'uidlist_20130828.txt')
 
 s = []
+
+count_idx = 0
 for line in f.readlines():
+    if line.startswith(codecs.BOM_UTF8):
+        line = line[3:]
     uid = line.strip().split(' ')[0]
-    s.append(uid)
+    if count_idx >= start_idx and count_idx <= end_idx:
+        s.append(uid)
     if uid == None:
         print 'uid equals None'
+    count_idx += 1
 f.close()
 
 l = len(s)
@@ -172,7 +198,7 @@ def clean_status(status_text):
     content = re.sub(t_url_pattern, ' ', status_text)
     content = re.sub(tag_pattern, r'\1', content)
     content = re.sub(emotion_pattern, r'', content)
-    print content
+    #print content
     urls = None
     mentions = None
     tags = None
@@ -192,19 +218,12 @@ def clean_status(status_text):
     if remotions:
         emotions = []
         for emotion in remotions:
-            print emotion
+            #print emotion
             emotions.append(emotion)
     if tags:
         tags = list(set(tags))
     content = clean_non_alphanumerics(content)
     return content, urls, tags, emotions
-
-##输出内容
-    putWhatGet.write(content)
-    putWhatGet.write(tag)
-    putWhatGet.write(emotion)
-
-
 
 def clean_non_alphanumerics(content):
     '''清除文本中除了中文、字母、数字和空格外的其他字符
@@ -274,21 +293,27 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
             self.travel(uid=uid)
             time.sleep(5)
         
-    def travel(self, uid=None):
-        con_database()##
-        
+    def travel(self, uid=None, startstr='20120209', endstr='20120309'):
         if not uid:
             return None
-        url = 'http://weibo.cn/u/'+uid
+        #url = 'http://weibo.cn/u/'+uid
+        weibo_profile_url = 'http://weibo.cn/' + uid + '/profile?keyword=%E5%BE%AE%E5%8D%9A&hasori=0&haspic=0&starttime=' + startstr + '&endtime=' + endstr + '&advancedfilter=1&st=8786'
+        #经测试，只能抓100页数据，即1000条数据，需要记录total_page > 100的uid
         total_page = 1
-        home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page=1'))
+        #home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page=1'))
+        print 'open %s weibo profile page 1 ' % uid
+        home_page_soup = BeautifulSoup(self.client.urlopen(weibo_profile_url +'&page=1'))
         try:
             total_page = int(home_page_soup.find('div', {'class':'pa', 'id':'pagelist'}).form.div.\
                              find('input', {'name':'mp'})['value'])
+            print 'total_page: ', total_page
+            if total_page > 100:
+                total_page = 100
         except Exception, e:
             #no status or status = 1 page
             pass
         try:
+            print 'open %s user profile page' % uid
             name, verified, gender, location, desc, tags = self._travel_info(uid)
             print 'spider %d searching uid: %s name: %s...' % (self.num, uid, name)
         except Exception, e:
@@ -301,21 +326,28 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
         weibo_user_url_pattern = r'http://weibo.cn/u/(\d+)\D*'
 
         posts = []
-        for current_page in range(1, total_page+1):
+
+        for current_page in range(start_page, total_page+1):
             if current_page > 1:
-                home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page='+str(current_page)),
-                                               parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
-            #print current_page
+                #home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page='+str(current_page)), parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
+                print 'open %s weibo profile page %s ' % (uid, current_page)
+                home_page_soup = BeautifulSoup(self.client.urlopen(weibo_profile_url + '&page='+str(current_page)), parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
+ 
+            #print home_page_soup.findAll('div', {'class': 'c'})
             for status in home_page_soup.findAll('div', {'class': 'c'})[:-2]:
+                #print status
                 try:
                     mid = status['id'][2:]
+                    print mid
                 except Exception, e:
                     #no status publish
+                    print 'here10'
                     continue
                 status_divs = status.findAll('div')
+                #print status_divs
                 status_divs_count = len(status_divs)
-                if status_divs_count == 2:
-                    #text & repost_text
+                if status_divs_count == 3:
+                    # text & picture & repost_text
                     div = status_divs[0]
                     cmt = div.find('span', {'class': 'cmt'})
                     try:
@@ -324,6 +356,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                         source_user_url = source_user_a_tag['href']
                         source_user_name = source_user_a_tag.string
                     except:
+                        print 'here10'
                         continue
                     ctt = div.find('span', {'class': 'ctt'})
                     source_text = ''
@@ -334,9 +367,10 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                             pass
                     source_text.strip()
                     if not source_text:
+                        print 'here9'
                         continue
-                    print source_user_name+':'+source_text  ##打印出来啦,转发的原文本
-                    re_div = status_divs[1]
+                    #print source_user_name+':'+source_text  ##打印出来啦,转发的原文本
+                    re_div = status_divs[2]
                     re_text = ''
                     for re_tag in re_div.contents[1:-9]:
                         try:
@@ -345,6 +379,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                             pass
                     re_text.strip()
                     if not re_text:
+                        print 'here8'
                         continue
                     ct_span = re_div.find('span', {'class': 'ct'})
                     if len(ct_span.contents)> 1:
@@ -355,23 +390,26 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                         tokens = ct_span.string.split('&nbsp;')
                         ts = int(smc2unix(tokens[0].strip()))
                         source = tokens[1][2:].strip()
-                    print source, unix2localtime(ts)  ##打印出来啦
+                    #print source, unix2localtime(ts)  ##打印出来啦
                     content = re_text+' '+source_text
                     content, urls, hashtags, emotions = clean_status(content)
 
                     r_source_user_uid = re.search(weibo_user_url_pattern, source_user_url)
                     if r_source_user_uid:
-                        if r_source_user_uid.group(1) == None:   ##
-                            source_user_uid = self._getuid(source_user_url)##
-                        else:##
+                        if r_source_user_uid.group(1) == None:
+                            print 'open source user profile page to get uid '
+                            source_user_uid = self._getuid(source_user_url)
+                        else:
                             source_user_uid = r_source_user_uid.group(1)
                     else:
+                        print 'open source user profile page to get uid '
                         source_user_uid = self._getuid(source_user_url)  ##TimeoutError:HTTPConnectionPool(host='weibo.cn', port=None): Request timed out.
-                        
+                    print 'open source user %s user profile page' % source_user_uid
                     source_user_name, source_user_verified, source_user_gender, source_user_location, \
                         source_user_desc, source_user_tags = self._travel_info(source_user_uid)
                     if not source_user_name or not source_user_gender or not source_user_location:
                         print 'Repost User %s Missed' % source_user_uid
+                        print 'here7'
                         continue
                     post = {'_id': mid,
                             'uid': uid,
@@ -389,9 +427,9 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                             'urls': urls,
                             'hashtags': hashtags,
                             'emotions': emotions}
-                elif status_divs_count == 1:
-                    #text
+                elif status_divs_count == 2:
                     div = status_divs[0]
+
                     ctt = div.find('span', {'class': 'ctt'})
                     source_text = ''
                     for ctt_tag in ctt.contents:
@@ -401,6 +439,118 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                             pass
                     source_text.strip()
                     if not source_text:
+                        print 'here6'
+                        continue
+                    
+                    cmt = div.find('span', {'class': 'cmt'})
+                    if not cmt:
+                        #text & picture
+                        pic_div = status_divs[1]
+                        ct_span = pic_div.find('span', {'class': 'ct'})
+                        if len(ct_span.contents)> 1:
+                            creat_at = ct_span.contents[0][:-8] #remove &nbsp;来自
+                            ts = int(smc2unix(creat_at))
+                            source = ct_span.contents[1].string
+                        else:
+                            tokens = ct_span.string.split('&nbsp;')
+                            ts = int(smc2unix(tokens[0].strip()))
+                            source = tokens[1][2:].strip()
+                        #print source, unix2localtime(ts)  ##打印出来啦
+                        content = source_text
+                        content, urls, hashtags, emotions = clean_status(content)
+                        post = {'_id': mid,
+                                'uid': uid,
+                                'name': name,
+                                'gender': gender,
+                                'location': location,
+                                'text': source_text,
+                                'source': source,
+                                'ts': ts,
+                                'urls': urls,
+                                'hashtags': hashtags,
+                                'emotions': emotions}
+                    else:
+                        #text & repost text
+                        try:
+                            #some weibo may be deleted
+                            source_user_a_tag = cmt.contents[1]
+                            source_user_url = source_user_a_tag['href']
+                            source_user_name = source_user_a_tag.string
+                        except:
+                            print 'source weibo has been deleted'
+                            continue
+
+                        re_div = status_divs[1]
+                        re_text = ''
+                        for re_tag in re_div.contents[1:-9]:
+                            try:
+                                re_text += clean_html(re_tag.string)
+                            except:
+                                pass
+                        re_text.strip()
+                        if not re_text:
+                            print 'here4'
+                            continue
+                        ct_span = re_div.find('span', {'class': 'ct'})
+                        if len(ct_span.contents)> 1:
+                            creat_at = ct_span.contents[0][:-8] #remove &nbsp;来自
+                            ts = int(smc2unix(creat_at))
+                            source = ct_span.contents[1].string
+                        else:
+                            tokens = ct_span.string.split('&nbsp;')
+                            ts = int(smc2unix(tokens[0].strip()))
+                            source = tokens[1][2:].strip()
+                        #print source, unix2localtime(ts)  ##打印出来啦
+                        content = re_text+' '+source_text
+                        content, urls, hashtags, emotions = clean_status(content)
+
+                        r_source_user_uid = re.search(weibo_user_url_pattern, source_user_url)
+                        if r_source_user_uid:
+                            if r_source_user_uid.group(1) == None:
+                                print 'open source user profile page to get uid '
+                                source_user_uid = self._getuid(source_user_url)
+                            else:
+                                source_user_uid = r_source_user_uid.group(1)
+                        else:
+                            print 'open source user profile page to get uid '
+                            source_user_uid = self._getuid(source_user_url)  ##TimeoutError:HTTPConnectionPool(host='weibo.cn', port=None): Request timed out.
+
+                        print 'open source user %s user profile page' % source_user_uid   
+                        source_user_name, source_user_verified, source_user_gender, source_user_location, \
+                            source_user_desc, source_user_tags = self._travel_info(source_user_uid)
+                        if not source_user_name or not source_user_gender or not source_user_location:
+                            print 'Repost User %s Missed' % source_user_uid
+                            print 'here3'
+                            continue
+                        post = {'_id': mid,
+                                'uid': uid,
+                                'name': name,
+                                'gender': gender,
+                                'location': location,
+                                'text': re_text,
+                                'repost': {'uid': source_user_uid,
+                                           'name': source_user_name,
+                                           'gender': source_user_gender,
+                                           'location': source_user_location,
+                                           'text': source_text},
+                                'source': source,
+                                'ts': ts,
+                                'urls': urls,
+                                'hashtags': hashtags,
+                                'emotions': emotions}
+                elif status_divs_count == 1:
+                    #text
+                    div = status_divs[0]
+                    ctt = div.find('span', {'class': 'ctt'})
+                    source_text = ''
+                    for ctt_tag in ctt.contents:
+                        try:
+                            source_text += clean_html(ctt_tag.string)
+                        except exception, e:
+                            pass
+                    source_text.strip()
+                    if not source_text:
+                        print 'here2'
                         continue
                     #print source_text
                     ct_span = div.find('span', {'class': 'ct'})
@@ -412,7 +562,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                         tokens = ct_span.string.split('&nbsp;')
                         ts = int(smc2unix(tokens[0].strip()))
                         source = tokens[1][2:].strip()
-                    print source, unix2localtime(ts)  ##打印出来啦
+                    #print source, unix2localtime(ts)  ##打印出来啦
                     content = source_text
                     content, urls, hashtags, emotions = clean_status(content)
                     post = {'_id': mid,
@@ -427,16 +577,14 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                             'hashtags': hashtags,
                             'emotions': emotions}
                 else:
+                    print 'here1'
                     continue
-                posts.append(post)
-                #print post['text'].encode('gbk', 'ignore')   就这么着决定去西藏了？！[得意地笑],打印整个微博内容,但和前面是重复的
-
-                db = con_database()
+                #print post
                 db.users.save(post) ##存入数据库
-                putWhatGet.write(post['text'].encode('gbk', 'ignore'))
+                posts.append(post)
             time.sleep(5)
 
-        print post['_id'] + '  ' + post['uid'] + '  ' + post['name'] + '  ' + post['gender'] + '  ' + post['location']
+        #print post['_id'] + '  ' + post['uid'] + '  ' + post['name'] + '  ' + post['gender'] + '  ' + post['location']
         return posts
 
     def _travel_info(self, uid):
@@ -496,27 +644,11 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                 break
         return uid
 
-    
-def con_database():##使用的时候导入，每个方法里有一个就行,注意不能更改
-    DB_HOST = '219.224.135.60'
-    DB_PORT = 27017
-    DB_USER = 'root'
-    DB_PWD = 'root'
-    connection = pymongo.Connection(DB_HOST, DB_PORT)
-    db = connection.admin
-    db.authenticate(DB_USER, DB_PWD)
-    return connection.test_crawler_liwenwen
-
 def main():
-    db = con_database()##连接，每次使用前调用一下
-    #db.test1.find()
-    #item = {}
-    #db.insert(item)
     s = Spider()
     s.spider(join=True)
-    putWhatGet.close()
-
 
 if __name__ == '__main__':
+    #pass
     main()
 
