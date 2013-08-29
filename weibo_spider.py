@@ -18,7 +18,7 @@ from BeautifulSoup import BeautifulSoup, SoupStrainer
 WEIBO_USER = 'xxx'
 WEIBO_PWD = 'xxx'
 
-GSID = 'gsid_CTandWM=4uCBa7521QnK50LatVtiKcsTM3l' #naive way
+GSID = 'gsid_CTandWM=4uqga7521kT6e8UQhNsbje5ht8o' #naive way
 COOKIES_FILE = 'cookies.txt'
 
 def con_database():##使用的时候导入，每个方法里有一个就行,注意不能更改
@@ -33,8 +33,8 @@ def con_database():##使用的时候导入，每个方法里有一个就行,注�
 
 db = con_database()
 
-start_idx = 3#int(sys.argv[1])
-end_idx = 3#int(sys.argv[2])
+start_idx = int(sys.argv[1])
+end_idx = int(sys.argv[2])
 
 try:
     start_page = int(sys.argv[3])
@@ -311,6 +311,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                 total_page = 100
         except Exception, e:
             #no status or status = 1 page
+            print 'total_page: ', 1
             pass
         try:
             print 'open %s user profile page' % uid
@@ -332,6 +333,9 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                 #home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page='+str(current_page)), parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
                 print 'open %s weibo profile page %s ' % (uid, current_page)
                 home_page_soup = BeautifulSoup(self.client.urlopen(weibo_profile_url + '&page='+str(current_page)), parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
+
+            if home_page_soup.findAll('div', {'class': 'c'})[:-2] == []:
+                print 'page ',current_page, ' has no content'
  
             #print home_page_soup.findAll('div', {'class': 'c'})
             for status in home_page_soup.findAll('div', {'class': 'c'})[:-2]:
@@ -341,7 +345,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                     print mid
                 except Exception, e:
                     #no status publish
-                    print 'here10'
+                    print 'no status publish'
                     continue
                 status_divs = status.findAll('div')
                 #print status_divs
@@ -350,14 +354,20 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                     # text & picture & repost_text
                     div = status_divs[0]
                     cmt = div.find('span', {'class': 'cmt'})
+                    kt = div.find('span', {'class': 'kt'})
+                    if kt:
+                        #置顶微博
+                        print 'top weibo'
+                        cmt = div.findAll('span', {'class': 'cmt'})[1]
                     try:
                         #some weibo may be deleted
                         source_user_a_tag = cmt.contents[1]
                         source_user_url = source_user_a_tag['href']
                         source_user_name = source_user_a_tag.string
                     except:
-                        print 'here10'
+                        print 'source weibo has been deleted'
                         continue
+                    
                     ctt = div.find('span', {'class': 'ctt'})
                     source_text = ''
                     for ctt_tag in ctt.contents:
@@ -441,8 +451,17 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                     if not source_text:
                         print 'here6'
                         continue
-                    
-                    cmt = div.find('span', {'class': 'cmt'})
+
+                    kt = div.find('span', {'class': 'kt'})
+                    if kt:
+                        #置顶微博
+                        print 'top weibo'
+                        try:
+                            cmt = div.findAll('span', {'class': 'cmt'})[1]
+                        except:
+                            cmt = None
+                    else:
+                        cmt = div.find('span', {'class': 'cmt'})                    
                     if not cmt:
                         #text & picture
                         pic_div = status_divs[1]
@@ -471,6 +490,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                                 'emotions': emotions}
                     else:
                         #text & repost text
+                        
                         try:
                             #some weibo may be deleted
                             source_user_a_tag = cmt.contents[1]
@@ -546,7 +566,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                     for ctt_tag in ctt.contents:
                         try:
                             source_text += clean_html(ctt_tag.string)
-                        except exception, e:
+                        except Exception, e:
                             pass
                     source_text.strip()
                     if not source_text:
@@ -598,7 +618,8 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
         try:
             user_info_div  = user_info_div[2]   ##IndexError:list index out of range
         except IndexError, e:
-            print e
+            print 'User %s doesnot exist' % uid
+            return None
         for br_tag in user_info_div.contents:
             info_string = br_tag.string
             if info_string:
