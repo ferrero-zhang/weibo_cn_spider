@@ -1,8 +1,0 @@
-﻿IP	gsid	email	block
-gsid_CTandWM=4uCBa7521QnK50LatVtiKcsTM3l	linbuaahao@163.com	blocked
-gsid_CTandWM=4uCBa7521QnK50LatVtiKcsTM3l	buaalinhao@163.com	blocked
-gsid_CTandWM=4u1ba75210UHkqZ1GgMQ87EbNd5	15210969313	blocked
-gsid_CTandWM=4u0Na7521dI2VejwNjvdicuQD3L	viplinhao@126.com	blocked
-219.224.135.60	gsid_CTandWM=4uqga7521kT6e8UQhNsbje5ht8o	linhao.lh@qq.com
-219.224.135.124	gsid_CTandWM=4u5La7521lfDc0Xr4Ysiqbnfebt	lhlhlinhao@163.com	
-219.224.135.125	gsid_CTandWM=4ufYa7521Suvl1DYe78EwfKvV7l	18511697536
