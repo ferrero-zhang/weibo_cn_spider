@@ -43,9 +43,10 @@ except:
 
 print 'spider range %s -- %s, start from page %s ' % (start_idx, end_idx, start_page)
 
+total_uids = []
 uid_queue = Queue.Queue()  ##用户队列,先进先出
 ##从文件中读入ID
-f = open(r'uidlist_20130828.txt')
+f = open(r'./test/20130911_lhf_uid.txt')
 
 s = []
 
@@ -56,6 +57,7 @@ for line in f.readlines():
     uid = line.strip().split(' ')[0]
     if count_idx >= start_idx and count_idx <= end_idx:
         s.append(uid)
+    total_uids.append(uid)
     if uid == None:
         print 'uid equals None'
     count_idx += 1
@@ -301,7 +303,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
         #经测试，只能抓100页数据，即1000条数据，需要记录total_page > 100的uid
         total_page = 1
         #home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page=1'))
-        print 'open %s weibo profile page 1 ' % uid
+        print 'open the %s user %s weibo profile page 1 ' % (total_uids.index(uid),uid)
         home_page_soup = BeautifulSoup(self.client.urlopen(weibo_profile_url +'&page=1'))
         try:
             total_page = int(home_page_soup.find('div', {'class':'pa', 'id':'pagelist'}).form.div.\
@@ -331,7 +333,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
         for current_page in range(start_page, total_page+1):
             if current_page > 1:
                 #home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page='+str(current_page)), parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
-                print 'open %s weibo profile page %s ' % (uid, current_page)
+                print 'open the %s user %s weibo profile page %s ' % (total_uids.index(uid),uid, current_page)
                 home_page_soup = BeautifulSoup(self.client.urlopen(weibo_profile_url + '&page='+str(current_page)), parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
 
             if home_page_soup.findAll('div', {'class': 'c'})[:-2] == []:
