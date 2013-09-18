@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+
 import os
 import re
 import time
@@ -12,13 +13,13 @@ import pymongo
 import codecs
 import Queue
 import sys
-
+from utils4spider import unix2localtime, smc2unix, clean_status, clean_html, base62_decode
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 
 WEIBO_USER = 'xxx'
 WEIBO_PWD = 'xxx'
 
-GSID = 'gsid_CTandWM=4uqga7521kT6e8UQhNsbje5ht8o' #naive way
+GSID = 'gsid_CTandWM=4uOoa7521uRCekVGMYfI2999EeI' #naive way
 COOKIES_FILE = 'cookies.txt'
 
 def con_database():##使用的时候导入，每个方法里有一个就行,注意不能更改
@@ -133,122 +134,6 @@ def load_cookies():
         cookie_str = ';'.join(cookie_list)
     return cookie_str
 
-def unix2localtime(ts):
-    '''将unix时间戳转化为本地时间格式: 2011-1-1 11:11:11
-    '''
-    return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))
-
-def smc2unix(date_str):
-    '''将微博上的时间格式转化为unix时间戳
-    '''
-    time_pattern_1 = r'(\d+)'+u'分钟前' #5分钟前
-    time_pattern_2 = u'今天'+r' (\d\d):(\d\d)' #今天 17:51
-    time_pattern_3 = r'(\d\d)'+u'月'+r'(\d\d)'+u'日 '+r'(\d\d):(\d\d)' #02月22日 08:32 
-    time_pattern_4 =  r'(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)' #2011-12-31 23:34:19
-    date_str.strip()
-    try:
-        minute = int(re.search(time_pattern_1, date_str).group(1))
-        now_ts = time.time()
-        ts = now_ts - minute*60
-        #print time.localtime(ts)
-        return ts
-    except:
-        pass
-    try:
-        hour = re.search(time_pattern_2, date_str).group(1)
-        minute = re.search(time_pattern_2, date_str).group(2)
-        now = time.localtime()
-        date = str(now.tm_year)+'-'+str(now.tm_mon)+'-'+str(now.tm_mday)+' '+hour+':'+minute
-        ts = time.mktime(time.strptime(date, '%Y-%m-%d %H:%M'))
-        #print time.localtime(ts)
-        return ts
-    except:
-        pass
-    try:
-        month = re.search(time_pattern_3, date_str).group(1)
-        day = re.search(time_pattern_3, date_str).group(2)
-        hour = re.search(time_pattern_3, date_str).group(3)
-        minute = re.search(time_pattern_3, date_str).group(4)
-        now = time.localtime()
-        date = str(now.tm_year)+'-'+month+'-'+day+' '+hour+':'+minute
-        ts = time.mktime(time.strptime(date, '%Y-%m-%d %H:%M'))
-        #print time.localtime(ts)
-        return ts
-    except:
-        pass
-    try:
-        year = re.search(time_pattern_4, date_str).group(1)
-        month = re.search(time_pattern_4, date_str).group(2)
-        day = re.search(time_pattern_4, date_str).group(3)
-        hour = re.search(time_pattern_4, date_str).group(4)
-        minute = re.search(time_pattern_4, date_str).group(5)
-        second = re.search(time_pattern_4, date_str).group(6)
-        date = year+'-'+month+'-'+day+' '+hour+':'+minute+':'+second
-        ts = time.mktime(time.strptime(date, '%Y-%m-%d %H:%M:%S'))
-        #print time.localtime(ts)
-        return ts
-    except:
-        pass
-    return None
-
-def clean_status(status_text):
-    '''清洗微博内容 返回清洗后的文本、文本中包含的#话题#、文本中的[表情]
-    '''
-    t_url_pattern = r'http://t.cn/\w+'  #文本
-    tag_pattern = r'#(.+?)#'            #话题   #上半年微盘点# 
-    emotion_pattern = r'\[(.+?)\]'      #表情   [酷]
-    content = re.sub(t_url_pattern, ' ', status_text)
-    content = re.sub(tag_pattern, r'\1', content)
-    content = re.sub(emotion_pattern, r'', content)
-    #print content
-    urls = None
-    mentions = None
-    tags = None
-    emotions = None
-    rurls = re.findall(t_url_pattern, status_text)  ##findall列出字符串中模式的所有匹配项
-    if rurls:
-        urls = []
-        for url in rurls:
-            urls.append(url)
-    rtags = re.findall(tag_pattern, status_text)
-    if rtags:
-        tags = []
-        for tag in rtags:
-            #print tag  ##8,12之类的东西 ？？？
-            tags.append(tag)
-    remotions = re.findall(emotion_pattern, status_text)
-    if remotions:
-        emotions = []
-        for emotion in remotions:
-            #print emotion
-            emotions.append(emotion)
-    if tags:
-        tags = list(set(tags))
-    content = clean_non_alphanumerics(content)
-    return content, urls, tags, emotions
-
-def clean_non_alphanumerics(content):
-    '''清除文本中除了中文、字母、数字和空格外的其他字符
-    '''
-    char_list = []
-    for char in content:
-        n = ord(char)
-        if 0x4e00<=n<0x9fa6 or 97<=n<=122 or 65<=n<=90 or 48<=n<=57:
-            char_list.append(char)
-    return ''.join(char_list)
-
-def clean_html(html):
-    '''清除html文本中的相关转义符号
-    '''
-    html = re.sub('&nbsp;', '', html)
-    html = re.sub('&ensp;', '', html)
-    html = re.sub('&emsp;', '', html)
-    html = re.sub('&amp;', '&', html)
-    html = re.sub('&lt;', '<', html)
-    html = re.sub('&gt;', '>', html)
-    html = re.sub('&quot;', '"', html)
-    return html
-
 class WeiboURL(object):
     def __init__(self):
         user_agent = '''Mozilla/5.0 (iPad; U; CPU OS 3_2 like Mac OS X; en-us)
@@ -295,7 +180,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
             self.travel(uid=uid)
             time.sleep(5)
         
-    def travel(self, uid=None, startstr='20120209', endstr='20120309'):
+    def travel(self, uid=None, startstr='20130801', endstr='20130916'):
         if not uid:
             return None
         #url = 'http://weibo.cn/u/'+uid
@@ -314,7 +199,6 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
         except Exception, e:
             #no status or status = 1 page
             print 'total_page: ', 1
-            pass
         try:
             print 'open %s user profile page' % uid
             name, verified, gender, location, desc, tags = self._travel_info(uid)
@@ -343,6 +227,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
             for status in home_page_soup.findAll('div', {'class': 'c'})[:-2]:
                 #print status
                 try:
+                    #mid = base62_decode(status['id'][2:])
                     mid = status['id'][2:]
                     print mid
                 except Exception, e:
@@ -381,8 +266,25 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                     if not source_text:
                         print 'here9'
                         continue
-                    #print source_user_name+':'+source_text  ##打印出来啦,转发的原文本
+
+                    sec_div = status_divs[1]
+                    retweeted_attitudes_count = int(sec_div.findAll('span', {'class': 'cmt'})[0].string[2:-1])
+                    retweeted_reposts_count = int(sec_div.findAll('span', {'class': 'cmt'})[1].string[5:-1])
+                    retweeted_comments_count = int(sec_div.find('a', {'class': 'cc'}).string[5:-1])
+                    print retweeted_attitudes_count, retweeted_reposts_count, retweeted_comments_count
+
                     re_div = status_divs[2]
+                    counts = re_div.findAll('a')[-5:]
+                    try:
+                        comments_count = int(counts[-2].string[3:-1])
+                        attitudes_count = int(counts[-4].string[2:-1])
+                        reposts_count = int(counts[-3].string[3:-1])
+                    except:
+                        comments_count = int(counts[-3].string[3:-1])
+                        attitudes_count = int(counts[-5].string[2:-1])
+                        reposts_count = int(counts[-4].string[3:-1])
+                    print attitudes_count, reposts_count, comments_count
+
                     re_text = ''
                     for re_tag in re_div.contents[1:-9]:
                         try:
@@ -402,7 +304,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                         tokens = ct_span.string.split('&nbsp;')
                         ts = int(smc2unix(tokens[0].strip()))
                         source = tokens[1][2:].strip()
-                    #print source, unix2localtime(ts)  ##打印出来啦
+
                     content = re_text+' '+source_text
                     content, urls, hashtags, emotions = clean_status(content)
 
@@ -433,12 +335,18 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                                        'name': source_user_name,
                                        'gender': source_user_gender,
                                        'location': source_user_location,
-                                       'text': source_text},
+                                       'text': source_text,
+                                       'retweeted_attitudes_count': retweeted_attitudes_count,
+                                       'retweeted_reposts_count': retweeted_reposts_count,
+                                       'retweeted_comments_count': retweeted_comments_count},
                             'source': source,
                             'ts': ts,
                             'urls': urls,
                             'hashtags': hashtags,
-                            'emotions': emotions}
+                            'emotions': emotions,
+                            'attitudes_count': attitudes_count,
+                            'reposts_count': reposts_count,
+                            'comments_count': comments_count}
                 elif status_divs_count == 2:
                     div = status_divs[0]
 
@@ -467,6 +375,11 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                     if not cmt:
                         #text & picture
                         pic_div = status_divs[1]
+                        a_counts = pic_div.findAll('a')
+                        attitudes_count = int(a_counts[2].string[2:-1])
+                        reposts_count = int(a_counts[3].string[3:-1])
+                        comments_count = int(a_counts[4].string[3:-1])
+                        print attitudes_count, reposts_count, comments_count
                         ct_span = pic_div.find('span', {'class': 'ct'})
                         if len(ct_span.contents)> 1:
                             creat_at = ct_span.contents[0][:-8] #remove &nbsp;来自
@@ -489,10 +402,12 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                                 'ts': ts,
                                 'urls': urls,
                                 'hashtags': hashtags,
-                                'emotions': emotions}
+                                'emotions': emotions,
+                                'attitudes_count': attitudes_count,
+                                'reposts_count': reposts_count,
+                                'comments_count': comments_count}
                     else:
                         #text & repost text
-                        
                         try:
                             #some weibo may be deleted
                             source_user_a_tag = cmt.contents[1]
@@ -502,7 +417,24 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                             print 'source weibo has been deleted'
                             continue
 
+                        sec_div = status_divs[0]
+                        retweeted_attitudes_count = int(sec_div.findAll('span', {'class': 'cmt'})[-2].string[2:-1])
+                        retweeted_reposts_count = int(sec_div.findAll('span', {'class': 'cmt'})[-1].string[5:-1])
+                        retweeted_comments_count = int(sec_div.find('a', {'class': 'cc'}).string[5:-1])
+                        print retweeted_attitudes_count, retweeted_reposts_count, retweeted_comments_count
+
                         re_div = status_divs[1]
+                        counts = re_div.findAll('a')[-5:]
+                        try:
+                            comments_count = int(counts[-2].string[3:-1])
+                            attitudes_count = int(counts[-4].string[2:-1])
+                            reposts_count = int(counts[-3].string[3:-1])
+                        except:
+                            comments_count = int(counts[-3].string[3:-1])
+                            attitudes_count = int(counts[-5].string[2:-1])
+                            reposts_count = int(counts[-4].string[3:-1])
+                        print attitudes_count, reposts_count, comments_count
+
                         re_text = ''
                         for re_tag in re_div.contents[1:-9]:
                             try:
@@ -554,15 +486,32 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                                            'name': source_user_name,
                                            'gender': source_user_gender,
                                            'location': source_user_location,
-                                           'text': source_text},
+                                           'text': source_text,
+                                           'retweeted_attitudes_count': retweeted_attitudes_count,
+                                           'retweeted_reposts_count': retweeted_reposts_count,
+                                           'retweeted_comments_count': retweeted_comments_count},
                                 'source': source,
                                 'ts': ts,
                                 'urls': urls,
                                 'hashtags': hashtags,
-                                'emotions': emotions}
+                                'emotions': emotions,
+                                'attitudes_count': attitudes_count,
+                                'reposts_count': reposts_count,
+                                'comments_count': comments_count}
                 elif status_divs_count == 1:
                     #text
                     div = status_divs[0]
+                    comments_count = div.find('a', {'class': 'cc'})
+                    counts = div.findAll('a')[-5:]
+                    try:
+                        comments_count = int(counts[-2].string[3:-1])
+                        attitudes_count = int(counts[-4].string[2:-1])
+                        reposts_count = int(counts[-3].string[3:-1])
+                    except:
+                        comments_count = int(counts[-3].string[3:-1])
+                        attitudes_count = int(counts[-5].string[2:-1])
+                        reposts_count = int(counts[-4].string[3:-1])
+                    print attitudes_count, reposts_count, comments_count
                     ctt = div.find('span', {'class': 'ctt'})
                     source_text = ''
                     for ctt_tag in ctt.contents:
@@ -597,12 +546,15 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                             'ts': ts,
                             'urls': urls,
                             'hashtags': hashtags,
-                            'emotions': emotions}
+                            'emotions': emotions,
+                            'attitudes_count': attitudes_count,
+                            'reposts_count': reposts_count,
+                            'comments_count': comments_count}
                 else:
                     print 'here1'
                     continue
                 #print post
-                db.users.save(post) ##存入数据库
+                db.weibos.save(post) ##存入数据库
                 posts.append(post)
             time.sleep(5)
 
@@ -612,11 +564,9 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
     def _travel_info(self, uid):
         
         url = 'http://weibo.cn/'+uid+'/info'   ##TypeError:cannot concatenate 'str' and 'NoneType' objects(source_user_uid)
-        
         name, verified, gender, location, desc, tags = None, None, None, None, None, None
         home_page_soup = BeautifulSoup(self.client.urlopen(url))
         user_info_div = home_page_soup.findAll('div', {'class': 'c'})
-
         try:
             user_info_div  = user_info_div[2]   ##IndexError:list index out of range
         except IndexError, e:
