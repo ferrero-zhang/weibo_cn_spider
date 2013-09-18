@@ -275,13 +275,19 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
 
                     re_div = status_divs[2]
                     counts = re_div.findAll('a')[-5:]
-                    try:
+                    try:#来源平台是span
                         comments_count = int(counts[-2].string[3:-1])
-                        attitudes_count = int(counts[-4].string[2:-1])
+                        try:#未赞
+                            attitudes_count = int(counts[-4].string[2:-1])
+                        except:#已赞
+                            attitudes_count = int(re_div.findAll('span', {'class': 'cmt'})[-1].string[3:-1])
                         reposts_count = int(counts[-3].string[3:-1])
-                    except:
+                    except:#来源平台是链接
                         comments_count = int(counts[-3].string[3:-1])
-                        attitudes_count = int(counts[-5].string[2:-1])
+                        try:#未赞
+                            attitudes_count = int(counts[-5].string[2:-1])
+                        except:#已赞
+                            attitudes_count = int(re_div.findAll('span', {'class': 'cmt'})[-1].string[3:-1])
                         reposts_count = int(counts[-4].string[3:-1])
                     print attitudes_count, reposts_count, comments_count
 
@@ -425,13 +431,19 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
 
                         re_div = status_divs[1]
                         counts = re_div.findAll('a')[-5:]
-                        try:
+                        try:#来源平台是span
                             comments_count = int(counts[-2].string[3:-1])
-                            attitudes_count = int(counts[-4].string[2:-1])
+                            try:#未赞
+                                attitudes_count = int(counts[-4].string[2:-1])
+                            except:#已赞
+                                attitudes_count = int(re_div.findAll('span', {'class': 'cmt'})[-1].string[3:-1])
                             reposts_count = int(counts[-3].string[3:-1])
-                        except:
+                        except:#来源平台是链接
                             comments_count = int(counts[-3].string[3:-1])
-                            attitudes_count = int(counts[-5].string[2:-1])
+                            try:#未赞
+                                attitudes_count = int(counts[-5].string[2:-1])
+                            except:#已赞
+                                attitudes_count = int(re_div.findAll('span', {'class': 'cmt'})[-1].string[3:-1])
                             reposts_count = int(counts[-4].string[3:-1])
                         print attitudes_count, reposts_count, comments_count
 
@@ -501,15 +513,20 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
                 elif status_divs_count == 1:
                     #text
                     div = status_divs[0]
-                    comments_count = div.find('a', {'class': 'cc'})
                     counts = div.findAll('a')[-5:]
-                    try:
+                    try:#来源平台是span
                         comments_count = int(counts[-2].string[3:-1])
-                        attitudes_count = int(counts[-4].string[2:-1])
+                        try:#未赞
+                            attitudes_count = int(counts[-4].string[2:-1])
+                        except:#已赞
+                            attitudes_count = int(div.find('span', {'class': 'cmt'}).string[3:-1])
                         reposts_count = int(counts[-3].string[3:-1])
-                    except:
+                    except:#来源平台是链接
                         comments_count = int(counts[-3].string[3:-1])
-                        attitudes_count = int(counts[-5].string[2:-1])
+                        try:#未赞
+                            attitudes_count = int(counts[-5].string[2:-1])
+                        except:#已赞
+                            attitudes_count = int(div.find('span', {'class': 'cmt'}).string[3:-1])
                         reposts_count = int(counts[-4].string[3:-1])
                     print attitudes_count, reposts_count, comments_count
                     ctt = div.find('span', {'class': 'ctt'})
