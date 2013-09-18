@@ -47,7 +47,7 @@ print 'spider range %s -- %s, start from page %s ' % (start_idx, end_idx, start_
 total_uids = []
 uid_queue = Queue.Queue()  ##用户队列,先进先出
 ##从文件中读入ID
-f = open(r'./test/20130911_lhf_uid.txt')
+f = open(r'./test/uidlist_20130918_missed.txt')
 
 s = []
 
@@ -177,10 +177,10 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
     def run(self):   ##重写run方法
         while not uid_queue.empty():
             uid = uid_queue.get()
-            self.travel(uid=uid)
+            self.travel(uid=uid, startstr='20090101', endstr='20130916', end_page=10)
             time.sleep(5)
         
-    def travel(self, uid=None, startstr='20130801', endstr='20130916'):
+    def travel(self, uid=None, startstr='20130801', endstr='20130916', end_page=None):
         if not uid:
             return None
         #url = 'http://weibo.cn/u/'+uid
@@ -214,7 +214,11 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象    getName()�
 
         posts = []
 
-        for current_page in range(start_page, total_page+1):
+        if end_page and end_page < total_page:
+            end_page = end_page
+        else:
+            end_page = total_page
+        for current_page in range(start_page, end_page):
             if current_page > 1:
                 #home_page_soup = BeautifulSoup(self.client.urlopen(url+'?page='+str(current_page)), parseOnlyThese=SoupStrainer('div', {'class': 'c'}))
                 print 'open the %s user %s weibo profile page %s ' % (total_uids.index(uid),uid, current_page)
