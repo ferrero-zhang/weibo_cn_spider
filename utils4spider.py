@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 import time
 import re
+import cookielib
+import os
+import urllib2
+import urllib
+from BeautifulSoup import BeautifulSoup
+from config import WEIBO_USER, WEIBO_PWD, COOKIES_FILE
 
 
 ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -173,3 +179,67 @@ def base62_decode(string, alphabet=ALPHABET):
         idx += 1
 
     return num
+
+def load_cookies():
+    '''模拟浏览器登录微博, 获取cookies字符串
+    '''
+    cj = cookielib.MozillaCookieJar()
+    if os.path.isfile(COOKIES_FILE):
+        print 'here1'
+        cookie_str = ''
+        cj.load(COOKIES_FILE)
+        cookie_list = []
+        for cookie in cj:
+            if cookie.domain == '.sina.cn':
+                cookie_list.append(str(cookie).split(' ')[1])
+            cookie_str = ';'.join(cookie_list)
+        return cookie_str
+    print 'here2'
+    mobile = WEIBO_USER
+    password = WEIBO_PWD
+    user_agent = '''Mozilla/5.0 (iPad; U; CPU OS 3_2 like Mac OS X; en-us)
+                    AppleWebKit/531.21.10 (KHTML, like Gecko) Version/4.0.4
+                    Mobile/7B334b Safari/531.21.10'''
+    header = {'User-Agent': user_agent} ##把自身模拟成Internet Explorer
+    
+    login_url = 'http://login.weibo.cn/login/?ns=1&revalid=2&backURL=http%3A%2F%2Fweibo.cn%2F&backTitle=%D0%C2%C0%CB%CE%A2%B2%A9&vt='
+    res = urllib2.urlopen(urllib2.Request(login_url, headers=header))##发送请求的同时传header单，注意缩写，res = response, req = request
+    login_html = res.read()
+    res.close()
+    login_soup = BeautifulSoup(login_html)
+    login_form_action = login_soup.find('form')['action']
+    vk = pwd = submit = backURL = backTitle = None
+    for input_box in login_soup.findAll('input'):
+        if input_box['type'] == 'password':
+            pwd = input_box['name']#'password_9231'
+        elif input_box['type'] == 'submit':
+            submit = input_box['value'].encode('utf-8')#'登陆'
+        elif input_box['type'] == 'hidden':
+            if input_box['name'] == 'vk':
+                vk = input_box['value']#'9231_dcbf_2302669551'
+            elif input_box['name'] == 'backURL':
+                backURL = input_box['value']#'http%3A%2F%2Fweibo.cn%2F'
+            elif input_box['name'] == 'backTitle':
+                backTitle = input_box['value'].encode('utf-8')#'新浪微博'
+    params = urllib.urlencode({'mobile': mobile, pwd: password, 'remember': 'on',
+                               'backURL': backURL, 'vk': vk, 'submit': submit, 'backTitle':backTitle, 'tryCount': ''})
+    print 'login post params %s' % params
+    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+    submit_url = 'http://login.weibo.cn/login/' + login_form_action
+    print 'submit url %s' % submit_url
+    res = opener.open(urllib2.Request(submit_url, headers=header), params)
+    redirect_html = res.read()
+    res.close()
+    redirect_soup = BeautifulSoup(redirect_html)
+    redirect_url = redirect_soup.find('a')['href']
+    res = opener.open(urllib2.Request(redirect_url, headers=header))
+    res.close()
+    cj.save(COOKIES_FILE, ignore_discard=True)
+    cookie_list = []
+    cookie_str = ''
+    for cookie in cj:
+        if cookie.domain == '.sina.cn':
+            cookie_list.append(str(cookie).split(' ')[1])
+        cookie_str = ';'.join(cookie_list)
+    print 'cookie_str: ', cookie_str
+    return cookie_str
