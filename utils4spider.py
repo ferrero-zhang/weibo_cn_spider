@@ -185,7 +185,6 @@ def load_cookies():
     '''
     cj = cookielib.MozillaCookieJar()
     if os.path.isfile(COOKIES_FILE):
-        print 'here1'
         cookie_str = ''
         cj.load(COOKIES_FILE)
         cookie_list = []
@@ -194,7 +193,6 @@ def load_cookies():
                 cookie_list.append(str(cookie).split(' ')[1])
             cookie_str = ';'.join(cookie_list)
         return cookie_str
-    print 'here2'
     mobile = WEIBO_USER
     password = WEIBO_PWD
     user_agent = '''Mozilla/5.0 (iPad; U; CPU OS 3_2 like Mac OS X; en-us)

@@ -11,13 +11,18 @@ from utils4spider import unix2localtime, smc2unix, clean_status, clean_html, bas
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 from selenium import webdriver
 from config import WEIBO_USER, WEIBO_PWD, getDB
+from getpass import getpass
 
 db = getDB()
 
+def update_name_password(WEIBO_USER, WEIBO_PWD):
+    db.authusers.update({'name': WEIBO_USER}, {'$set': {'pwd': WEIBO_PWD}}, True)
+
 class Spider(object):
-    def __init__(self):
+    def __init__(self, WEIBO_USER, WEIBO_PWD):
         self.spiders = []
-        self.client = webdriver.Chrome()#.Ie()#Firefox()
+        #self.client = webdriver.Remote(command_executor="http://219.224.135.60:4444/wd/hub", desired_capabilities={'browserName': 'firefox', 'platform': 'ANY'})
+        self.client = webdriver.Chrome()
         login_url = 'http://login.weibo.cn/login/?ns=1&revalid=2&backURL=http%3A%2F%2Fweibo.cn%2F&backTitle=%D0%C2%C0%CB%CE%A2%B2%A9&vt='
         self.client.get(login_url)
         input_elements = self.client.find_elements_by_tag_name('input')
@@ -27,9 +32,24 @@ class Spider(object):
         mobile_input_element.send_keys(WEIBO_USER)
         pwd_input_element.send_keys(WEIBO_PWD)
         submit_input_element.click()
-        middle_url = self.client.current_url
         time.sleep(5)
-        redirected_url = self.client.current_url
+        home_page_soup = BeautifulSoup(self.client.page_source)
+        if home_page_soup:
+            me_soup = home_page_soup.find('div', {'class': 'me'})
+            c_soup = home_page_soup.find('div', {'class': 'c'})
+            if me_soup and me_soup.string.encode('utf-8') == '登录名或密码错误':
+                self.client.quit()
+                sys.exit('login authentication failed, please check your name or pwd and retry.')
+            elif c_soup and c_soup.contents[0] and c_soup.contents[0] == u'登':
+                self.client.quit()
+                sys.exit('login authentication failed, please check your name or pwd and retry.')    
+            else:
+                print  'success login'
+                update_name_password(WEIBO_USER, WEIBO_PWD)
+        cookies = self.client.get_cookies()[0]
+        cookies.update({'_id': int(cookies['expiry'])-30*24*3600})
+        print 'cookies: ', cookies
+        db.cookies.save(cookies)
 
     def spider(self, start_page, uid_queue, total_uids, join=False, end_page=10):
         st = SpiderThread(1, start_page, end_page, uid_queue, total_uids, controler=self, client=self.client)
@@ -77,6 +97,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
         except Exception, e:
             #no status or status = 1 page
             print 'total_page: ', 1
+        '''
         try:
             print 'open %s user profile page' % uid
             name, verified, gender, location, desc, tags = self._travel_info(uid)
@@ -88,6 +109,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
             #user information missed
             print 'User %s Info Page Missed' % uid
             return None
+        '''
         if end_page and end_page < total_page:
             end_page = end_page
         else:
@@ -102,12 +124,12 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
                 print 'page ',current_page, ' has no content'
             else:
                 for status_soup in home_page_soup.findAll('div', {'class': 'c'})[:-2]:
-                    post = self._soup2WeiboItem(status_soup, uid, name, gender, location)
+                    post = self._soup2WeiboItem(status_soup, uid)
                     if post != None:
                         db.weibos.save(post) ##存入数据库
             time.sleep(5)
 
-    def _soup2WeiboItem(self, status, uid, name, gender, location):
+    def _soup2WeiboItem(self, status, uid):
         weibo_user_url_pattern = r'http://weibo.cn/u/(\d+)\D*'
         try:
             #mid = base62_decode(status['id'][2:])
@@ -196,8 +218,9 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
 
             content = re_text+' '+source_text
             content, urls, hashtags, emotions = clean_status(content)
-
+            '''
             r_source_user_uid = re.search(weibo_user_url_pattern, source_user_url)
+            
             if r_source_user_uid:
                 if r_source_user_uid.group(1) == None:
                     print 'open source user profile page to get uid '
@@ -207,6 +230,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
             else:
                 print 'open source user profile page to get uid '
                 source_user_uid = self._getuid(source_user_url)
+            
             print 'open source user %s user profile page' % source_user_uid
             source_user_name, source_user_verified, source_user_gender, source_user_location, \
                 source_user_desc, source_user_tags = self._travel_info(source_user_uid)
@@ -214,17 +238,11 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
                 print 'Repost User %s Missed' % source_user_uid
                 print 'here7'
                 return None
+            '''
             post = {'_id': mid,
                     'uid': uid,
-                    'name': name,
-                    'gender': gender,
-                    'location': location,
                     'text': re_text,
-                    'repost': {'uid': source_user_uid,
-                               'name': source_user_name,
-                               'gender': source_user_gender,
-                               'location': source_user_location,
-                               'text': source_text,
+                    'repost': {'text': source_text,
                                'retweeted_attitudes_count': retweeted_attitudes_count,
                                'retweeted_reposts_count': retweeted_reposts_count,
                                'retweeted_comments_count': retweeted_comments_count},
@@ -283,9 +301,6 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
                 content, urls, hashtags, emotions = clean_status(content)
                 post = {'_id': mid,
                         'uid': uid,
-                        'name': name,
-                        'gender': gender,
-                        'location': location,
                         'text': source_text,
                         'source': source,
                         'ts': ts,
@@ -352,7 +367,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
                 #print source, unix2localtime(ts)  ##打印出来啦
                 content = re_text+' '+source_text
                 content, urls, hashtags, emotions = clean_status(content)
-
+                '''
                 r_source_user_uid = re.search(weibo_user_url_pattern, source_user_url)
                 if r_source_user_uid:
                     if r_source_user_uid.group(1) == None:
@@ -371,17 +386,11 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
                     print 'Repost User %s Missed' % source_user_uid
                     print 'here3'
                     return None
+                '''
                 post = {'_id': mid,
                         'uid': uid,
-                        'name': name,
-                        'gender': gender,
-                        'location': location,
                         'text': re_text,
-                        'repost': {'uid': source_user_uid,
-                                   'name': source_user_name,
-                                   'gender': source_user_gender,
-                                   'location': source_user_location,
-                                   'text': source_text,
+                        'repost': {'text': source_text,
                                    'retweeted_attitudes_count': retweeted_attitudes_count,
                                    'retweeted_reposts_count': retweeted_reposts_count,
                                    'retweeted_comments_count': retweeted_comments_count},
@@ -438,9 +447,6 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
             content, urls, hashtags, emotions = clean_status(content)
             post = {'_id': mid,
                     'uid': uid,
-                    'name': name,
-                    'gender': gender,
-                    'location': location,
                     'text': source_text,
                     'source': source,
                     'ts': ts,
@@ -454,7 +460,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
             print 'here1'
             return None
         return post
-
+    '''
     def _travel_info(self, uid):
         
         url = 'http://weibo.cn/'+uid+'/info'   ##TypeError:cannot concatenate 'str' and 'NoneType' objects(source_user_uid)
@@ -512,6 +518,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
                 uid =  user_info_div_a_result.group(1)
                 break
         return uid
+    '''
 
 def main():
     start_idx = int(sys.argv[1])
@@ -526,7 +533,7 @@ def main():
     uid_queue = Queue.Queue()
 
     count_idx = 0
-    for line in open(r'./test/uidlist_20130918_missed.txt').readlines():
+    for line in open(r'./test/uidlist_20130918.txt').readlines():#uidlist_20130920.txt
         if line.startswith(codecs.BOM_UTF8):
             line = line[3:]
         uid = line.strip().split(' ')[0]
@@ -535,7 +542,9 @@ def main():
         total_uids.append(uid)
         count_idx += 1
 
-    s = Spider()
+    WEIBO_USER = raw_input('please input you account name: ')
+    WEIBO_PWD = getpass('please input you account password: ')
+    s = Spider(WEIBO_USER, WEIBO_PWD)
     s.spider(start_page, uid_queue, total_uids, True)
 
 
