@@ -78,7 +78,8 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
             uid = self.uid_queue.get()
             try:
                 self.travel(uid, self.startstr, self.endstr, self.start_page, self.end_page)
-            except (TimeoutException, WebDriverException) as e:
+            except:
+            #except (TimeoutException, WebDriverException) as e:
                 time.sleep(5)
                 self.travel(uid, self.startstr, self.endstr, self.start_page, self.end_page)
             time.sleep(5)

@@ -11,7 +11,7 @@ from BeautifulSoup import BeautifulSoup, SoupStrainer
 from selenium import webdriver
 from config import WEIBO_USER, WEIBO_PWD, getDB
 from getpass import getpass
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 import pickle
 
 db = getDB()
@@ -77,7 +77,8 @@ class SpiderThread(threading.Thread):
             uid = self.uid_queue.get()
             try:
                 self.travel(uid, self.start_page, self.end_page)
-            except (TimeoutException, WebDriverException) as e:
+            except:
+            #except (TimeoutException, WebDriverException) as e:
                 time.sleep(5)
                 self.travel(uid, self.start_page, self.end_page)
             time.sleep(5)
