@@ -11,6 +11,7 @@ from utils4spider import unix2localtime, smc2unix, clean_status, clean_html, bas
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 from selenium import webdriver
 from config import WEIBO_USER, WEIBO_PWD, getDB
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from getpass import getpass
 
 db = getDB()
@@ -75,7 +76,11 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
     def run(self):   ##重写run方法
         while not self.uid_queue.empty():
             uid = self.uid_queue.get()
-            self.travel(uid, self.startstr, self.endstr, self.start_page, self.end_page)
+            try:
+                self.travel(uid, self.startstr, self.endstr, self.start_page, self.end_page)
+            except (TimeoutException, WebDriverException) as e:
+                time.sleep(5)
+                self.travel(uid, self.startstr, self.endstr, self.start_page, self.end_page)
             time.sleep(5)
         self.client.quit()
         
@@ -533,7 +538,7 @@ def main():
     uid_queue = Queue.Queue()
 
     count_idx = 0
-    for line in open(r'./test/uidlist_20130918.txt').readlines():#uidlist_20130920.txt
+    for line in open(r'./test/uidlist_20130918.txt').readlines():
         if line.startswith(codecs.BOM_UTF8):
             line = line[3:]
         uid = line.strip().split(' ')[0]
