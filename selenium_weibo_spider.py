@@ -153,7 +153,7 @@ class SpiderThread(threading.Thread):  ##创建一个线程对象 getName()是th
             div = status_divs[0]
             cmt = div.find('span', {'class': 'cmt'})
             kt = div.find('span', {'class': 'kt'})
-            if kt and kt.contents[0][1:13].encode('utf-8') != '此内容为不实消息，已处理':
+            if kt and kt.contents[0][1:13].encode('utf-8') != '此内容为不实消息，已处理' and kt.contents[0][1:13].encode('utf-8') != '此内容为抄袭信息，已处理':
                 #置顶微博
                 print 'top weibo'
                 cmt = div.findAll('span', {'class': 'cmt'})[1]
