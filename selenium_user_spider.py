@@ -115,7 +115,7 @@ def main():
     uid_queue = Queue.Queue()
 
     count_idx = 0
-    for line in open(r'./test/uidlist_20130918_missed_followers.txt').readlines():
+    for line in open(r'./test/uidlist_20130921_missed_info.txt').readlines():
         if line.startswith(codecs.BOM_UTF8):
             line = line[3:]
         uid = line.strip().split(' ')[0]
