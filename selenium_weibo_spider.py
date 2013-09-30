@@ -22,7 +22,6 @@ def update_name_password(WEIBO_USER, WEIBO_PWD):
 class Spider(object):
     def __init__(self, WEIBO_USER, WEIBO_PWD):
         self.spiders = []
-        #self.client = webdriver.Remote(command_executor="http://219.224.135.60:4444/wd/hub", desired_capabilities={'browserName': 'firefox', 'platform': 'ANY'})
         self.client = webdriver.Chrome()
         login_url = 'http://login.weibo.cn/login/?ns=1&revalid=2&backURL=http%3A%2F%2Fweibo.cn%2F&backTitle=%D0%C2%C0%CB%CE%A2%B2%A9&vt='
         self.client.get(login_url)
@@ -539,7 +538,7 @@ def main():
     uid_queue = Queue.Queue()
 
     count_idx = 0
-    for line in open(r'./test/uidlist_20130918.txt').readlines():
+    for line in open(r'./test/uidlist_20130930.txt').readlines():
         if line.startswith(codecs.BOM_UTF8):
             line = line[3:]
         uid = line.strip().split(' ')[0]
